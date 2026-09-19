@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#06070a">
+<title>Rellotge cronògraf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400&family=Poppins:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --lume:#dbe6c4;
+    --lume-dark:#a9b891;
+    --hand:#f0f2ee;
+    --arrow:#e6402c;
+    --accent:#c7d4a9;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html{
+    height:100%;
+    background:#000;
+  }
+  body{
+    margin:0; padding:0;
+    position:fixed;
+    inset:0;
+    height:100dvh;
+    width:100vw;
+    background: radial-gradient(circle at 50% 22%, #16181c 0%, #06070a 65%, #000 100%);
+    font-family:-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    overflow:hidden;
+    overscroll-behavior:none;
+    -webkit-user-select:none;
+    user-select:none;
+  }
+
+  /* ---- App shell: fills the screen, respects iOS safe areas ---- */
+  .stage{
+    height:100%;
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:flex-start;
+    gap:clamp(10px,2.4vh,20px);
+    padding-top:max(14px, env(safe-area-inset-top));
+    padding-right:max(14px, env(safe-area-inset-right));
+    padding-bottom:max(14px, env(safe-area-inset-bottom));
+    padding-left:max(14px, env(safe-area-inset-left));
+  }
+
+  /* Portrait (default): watch takes almost the whole screen, calendar below */
+  .watch-wrap{
+    flex:1 1 auto;
+    min-height:0;
+    min-width:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  /* ---- Hourly flip mechanism: front (dial) / back (engraved plate) ---- */
+  .watch-flip-wrap{
+    position:relative;
+    width:100%;
+    height:100%;
+    margin:auto;
+    perspective:1800px;
+    filter:drop-shadow(0 20px 40px rgba(0,0,0,.65));
+  }
+  .watch-flip{
+    position:relative;
+    width:100%;
+    height:100%;
+    transform-style:preserve-3d;
+  }
+  .watch-flip.girant{
+    /* Duration set per-trigger from JS (--gir-dur), since it varies with how
+       many cuckoo+bell strikes have to fit inside the turn (1 to 12). */
+    animation:girRellotge var(--gir-dur, 10s) cubic-bezier(.45,.05,.55,.95);
+  }
+  @keyframes girRellotge{
+    from{ transform:rotateY(0deg); }
+    to{ transform:rotateY(360deg); }
+  }
+
+  /* Silver/aluminum "edge" layer, only visible mid-spin as the disc turns side-on */
+  .cos-cilindre-watch{
+    position:absolute;
+    inset:0;
+    border-radius:50%;
+    transform-style:preserve-3d;
+    pointer-events:none;
+  }
+  .cos-cilindre-watch .capa-volum-watch{
+    position:absolute;
+    inset:0;
+    border-radius:50%;
+    background:radial-gradient(circle at 38% 32%,
+      #fcfdfe 0%,
+      #eef1f3 18%,
+      #c3c9ce 42%,
+      #8b9298 68%,
+      #45484c 100%);
+    box-shadow:inset 0 0 10px rgba(0,0,0,.6);
+  }
+
+  .cara-davant-watch, .cara-darrere-watch{
+    position:absolute;
+    inset:0;
+    border-radius:50%;
+    backface-visibility:hidden;
+  }
+  .cara-davant-watch{
+    transform:translateZ(20px);
+  }
+  .cara-davant-watch svg{
+    width:100%;
+    height:100%;
+    display:block;
+  }
+  .cara-darrere-watch{
+    transform:rotateY(180deg) translateZ(20px);
+    background:radial-gradient(circle at 34% 30%,
+      #f6f7f8 0%,
+      #dde1e4 24%,
+      #b4bac0 50%,
+      #7d838a 76%,
+      #45474b 100%);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:inset 0 0 26px rgba(0,0,0,.35);
+  }
+  .gravat-revers{
+    text-align:center;
+    font-family:'Jost','Poppins',-apple-system,sans-serif;
+    text-transform:lowercase;
+    color:#4a4e52;
+    line-height:1.5;
+  }
+  .gravat-revers .nom{
+    display:block;
+    font-size:clamp(20px, 7.6vw, 36px);
+    font-weight:400;
+    letter-spacing:.09em;
+    color:#3c3f43;
+    text-shadow:0 1px 0 rgba(255,255,255,.55), 0 -1px 1px rgba(0,0,0,.18);
+  }
+  .gravat-revers .signat{
+    display:block;
+    margin-top:.35em;
+    font-size:clamp(14px, 5vw, 23px);
+    font-weight:300;
+    letter-spacing:.32em;
+    color:#6b6f74;
+    text-shadow:0 1px 0 rgba(255,255,255,.5), 0 -1px 1px rgba(0,0,0,.15);
+  }
+
+  .calendar{
+    flex:0 0 auto;
+    width:100%;
+    max-width:420px;
+    margin:0 auto;
+    background:linear-gradient(180deg,#141516,#0b0c0d);
+    border:1px solid #232426;
+    border-radius:16px;
+    padding:clamp(10px,2vh,16px) clamp(10px,3vw,14px) clamp(12px,2vh,18px);
+    box-shadow:0 20px 40px -12px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  /* Chronograph pushers: real mounted pusher shape — a stubby capsule that
+     merges into the case at its base and rotates radially so it reads as
+     bolted onto the bezel at ~10 and ~2 o'clock, like on an actual
+     chronograph, rather than a free-floating round button. The green
+     "today" accent lives in the cap face, with a steel collar at the base
+     for the mounted look. */
+  .crono-btn{
+    position:absolute;
+    z-index:5;
+    top:26%;
+    width:clamp(15px,3.8vw,21px);
+    height:clamp(30px,7.6vw,42px);
+    border-radius:46% 46% 5px 5px;
+    border:1px solid #4b5540;
+    background:
+      linear-gradient(180deg, var(--accent) 0%, var(--accent) 62%, #6d7a5a 72%, #3a3d40 82%, #767b7f 92%, #26282a 100%);
+    box-shadow:
+      0 3px 6px rgba(0,0,0,.6),
+      0 1px 0 rgba(255,255,255,.3) inset,
+      0 -2px 3px rgba(0,0,0,.4) inset;
+    padding:0;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+    transition:filter .08s ease, box-shadow .08s ease;
+  }
+  .crono-btn:active{
+    filter:brightness(0.88);
+    box-shadow:
+      0 1px 2px rgba(0,0,0,.55),
+      0 1px 0 rgba(255,255,255,.18) inset,
+      0 -1px 2px rgba(0,0,0,.45) inset;
+  }
+  .crono-btn.is-active{
+    box-shadow:
+      0 0 0 2px rgba(199,212,169,.6),
+      0 3px 6px rgba(0,0,0,.6),
+      0 1px 0 rgba(255,255,255,.3) inset,
+      0 -2px 3px rgba(0,0,0,.4) inset;
+  }
+  .crono-btn-left, .crono-btn-right{
+    transition:transform .4s ease, filter .08s ease, box-shadow .08s ease;
+  }
+  .crono-btn-left{
+    left:8%;
+    transform:translate(-50%,-50%) rotate(-58deg);
+  }
+  .crono-btn-left:active{ transition:transform .08s ease, filter .08s ease, box-shadow .08s ease; transform:translate(-50%,-50%) rotate(-58deg) scale(0.93); }
+  .crono-btn-left.pusher-retreat{ transform:translate(-50%,-50%) rotate(-58deg) translateY(-13px); }
+  .crono-btn-right{
+    left:92%;
+    transform:translate(-50%,-50%) rotate(58deg);
+  }
+  .crono-btn-right:active{ transition:transform .08s ease, filter .08s ease, box-shadow .08s ease; transform:translate(-50%,-50%) rotate(58deg) scale(0.93); }
+  .crono-btn-right.pusher-retreat{ transform:translate(-50%,-50%) rotate(58deg) translateY(-13px); }
+  .cal-header{
+    text-align:center;
+    color:#e6e6e2;
+    font-size:clamp(13px,2.6vh,19px);
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    margin-bottom:clamp(6px,1.4vh,12px);
+    font-weight:700;
+  }
+  .cal-grid{
+    display:grid;
+    grid-template-columns:repeat(7,minmax(0,1fr));
+    gap:clamp(2px,0.6vh,4px);
+  }
+  .cal-dow{
+    text-align:center;
+    color:#8b9482;
+    font-size:clamp(10px,2vh,14.5px);
+    letter-spacing:.06em;
+    font-weight:700;
+    padding-bottom:clamp(2px,0.8vh,6px);
+  }
+  .cal-day{
+    text-align:center;
+    color:#c7ccc2;
+    font-size:clamp(11px,2.3vh,18px);
+    font-weight:700;
+    padding:clamp(2px,0.9vh,6px) 0;
+    border-radius:8px;
+  }
+  .cal-day.empty{ color:transparent; }
+  .cal-day.today{
+    background:linear-gradient(180deg, var(--accent), #92a578);
+    color:#111;
+    font-weight:700;
+    box-shadow:0 2px 6px rgba(0,0,0,.5);
+  }
+  .cal-location{
+    text-align:center;
+    color:#8b9482;
+    font-size:clamp(10px,2vh,12.5px);
+    letter-spacing:.08em;
+    margin-top:clamp(8px,1.6vh,12px);
+    padding-top:clamp(8px,1.6vh,12px);
+    border-top:1px solid #232426;
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* ---- Landscape: calendar moves to the right, watch on the left, everything fits ---- */
+  @media (orientation:landscape){
+    .stage{
+      flex-direction:row;
+      align-items:stretch;
+      justify-content:center;
+    }
+    .watch-wrap{
+      flex:1 1 auto;
+      height:100%;
+    }
+    .calendar{
+      flex:0 0 auto;
+      width:clamp(200px, 30vw, 360px);
+      max-width:none;
+      height:100%;
+      margin:0;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      overflow-y:auto;
+    }
+  }
+
+  /* Tasteful caps on larger screens so the watch doesn't become oversized */
+  @media (orientation:landscape) and (min-width:900px){
+    .watch-wrap{ max-width:min(60vw, 640px); }
+    .calendar{ width:min(30vw, 380px); }
+  }
+  @media (orientation:portrait) and (min-height:900px){
+    .watch-wrap{ max-height:min(62vh, 620px); }
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="watch-wrap">
+   <div class="watch-flip-wrap" id="watchFlipWrap">
+    <button type="button" class="crono-btn crono-btn-left" id="cronoStartBtn" aria-label="Engega o atura el cronòmetre"></button>
+    <button type="button" class="crono-btn crono-btn-right" id="cronoSplitBtn" aria-label="Posa a zero o marca volta"></button>
+    <div class="watch-flip" id="watchFlip">
+     <div class="cos-cilindre-watch" id="cosCilindreWatch"></div>
+     <div class="cara-davant-watch">
+      <svg id="watchSvg" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="caseGrad" cx="35%" cy="28%" r="75%">
+          <stop offset="0%" stop-color="#f1f3f5"/>
+          <stop offset="45%" stop-color="#adb4ba"/>
+          <stop offset="80%" stop-color="#5c6267"/>
+          <stop offset="100%" stop-color="#2b2e31"/>
+        </radialGradient>
+        <radialGradient id="dialGrad" cx="40%" cy="30%" r="75%">
+          <stop offset="0%" stop-color="#1e1f22"/>
+          <stop offset="55%" stop-color="#101113"/>
+          <stop offset="100%" stop-color="#020203"/>
+        </radialGradient>
+        <radialGradient id="subGrad" cx="38%" cy="30%" r="75%">
+          <stop offset="0%" stop-color="#232427"/>
+          <stop offset="60%" stop-color="#18191b"/>
+          <stop offset="100%" stop-color="#0a0a0b"/>
+        </radialGradient>
+        <linearGradient id="metalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#3a3d40"/>
+          <stop offset="45%" stop-color="#d8dcdf"/>
+          <stop offset="70%" stop-color="#767b7f"/>
+          <stop offset="100%" stop-color="#26282a"/>
+        </linearGradient>
+        <linearGradient id="lumeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="var(--lume)"/>
+          <stop offset="100%" stop-color="var(--lume-dark)"/>
+        </linearGradient>
+        <radialGradient id="pivotGrad" cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stop-color="#f2f2f2"/>
+          <stop offset="60%" stop-color="#7d7d7d"/>
+          <stop offset="100%" stop-color="#242424"/>
+        </radialGradient>
+        <radialGradient id="bezelSheen" cx="30%" cy="20%" r="80%">
+          <stop offset="0%" stop-color="#2a2a2a"/>
+          <stop offset="60%" stop-color="#0c0c0c"/>
+          <stop offset="100%" stop-color="#000"/>
+        </radialGradient>
+        <filter id="concave" x="-50%" y="-50%" width="200%" height="200%">
+          <feOffset in="SourceGraphic" dx="1.6" dy="2.2" result="off1"/>
+          <feGaussianBlur in="off1" stdDeviation="2.4" result="blur1"/>
+          <feComposite operator="out" in="SourceGraphic" in2="blur1" result="inv1"/>
+          <feFlood flood-color="#000000" flood-opacity="0.75" result="col1"/>
+          <feComposite operator="in" in="col1" in2="inv1" result="shadowDark"/>
+
+          <feOffset in="SourceGraphic" dx="-1" dy="-1.4" result="off2"/>
+          <feGaussianBlur in="off2" stdDeviation="1.6" result="blur2"/>
+          <feComposite operator="out" in="SourceGraphic" in2="blur2" result="inv2"/>
+          <feFlood flood-color="#ffffff" flood-opacity="0.08" result="col2"/>
+          <feComposite operator="in" in="col2" in2="inv2" result="shadowLight"/>
+
+          <feMerge>
+            <feMergeNode in="SourceGraphic"/>
+            <feMergeNode in="shadowDark"/>
+            <feMergeNode in="shadowLight"/>
+          </feMerge>
+        </filter>
+      </defs>
+
+      <!-- Steel case -->
+      <circle cx="200" cy="200" r="193" fill="url(#caseGrad)"/>
+      <circle cx="200" cy="200" r="193" fill="none" stroke="#1b1c1e" stroke-width="1"/>
+      <g id="caseFlutes" stroke="#7d8286" stroke-width="1" opacity="0.35"></g>
+
+      <!-- Bezel insert -->
+      <circle cx="200" cy="200" r="179" fill="url(#bezelSheen)"/>
+      <circle cx="200" cy="200" r="179" fill="none" stroke="#000" stroke-width="1"/>
+
+      <!-- Tachymeter: minor ticks first, then major numbers on top -->
+      <g id="tachyMinorTicks" stroke="#666" stroke-width="0.7" opacity="0.75"></g>
+      <g id="tachyMajorTicks" stroke="#cfcfcf" stroke-width="1" opacity="0.85"></g>
+      <g id="tachyGroup" font-size="10" font-weight="600" fill="#d6d6d6" font-family="Helvetica Neue, Arial, sans-serif"></g>
+      <path id="tachyTextArc" d="M 217.04,37.89 A 163,163 0 0 1 304.77,75.13" fill="none"/>
+      <text font-size="9" font-weight="700" fill="#e2e2e2" letter-spacing="1">
+        <textPath href="#tachyTextArc" startOffset="50%" text-anchor="middle">TAQUÍMETRE</textPath>
+      </text>
+
+      <!-- Dial -->
+      <circle cx="200" cy="200" r="149" fill="url(#dialGrad)"/>
+      <circle cx="200" cy="200" r="149" fill="none" stroke="#000" stroke-width="1"/>
+
+      <!-- Minute ticks -->
+      <g id="ticksGroup" stroke="#c9c9c9" stroke-width="1" opacity="0.5"></g>
+
+      <!-- Logo -->
+      <text x="200" y="145" text-anchor="middle" font-family="Georgia, 'Futura', serif" font-size="38" fill="url(#lumeGrad)" stroke="#050505" stroke-width="0.4">&#937;</text>
+      <text x="200" y="160" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-weight="700" font-size="10" letter-spacing="2.5" fill="url(#lumeGrad)" stroke="#050505" stroke-width="0.3">OMEGA</text>
+
+      <!-- Hour markers -->
+      <g id="markersGroup" fill="url(#lumeGrad)" stroke="#050505" stroke-width="0.6"></g>
+
+      <!-- Subdials -->
+      <g id="subLeft">
+        <circle cx="140" cy="200" r="35" fill="url(#subGrad)" stroke="#000" stroke-width="1" filter="url(#concave)"/>
+        <g id="subLeftTicks" stroke="#8f9a86" stroke-width="0.8"></g>
+        <text x="140" y="183" text-anchor="middle" font-size="7.5" letter-spacing="1" fill="#8f9a86">TEMPº</text>
+        <text x="140" y="207" text-anchor="middle" font-weight="700" fill="#dbe6c4"><tspan id="tempValue" font-size="14">--</tspan><tspan font-size="9" font-weight="600" fill="#9fab90" dy="-4">°C</tspan></text>
+      </g>
+
+      <g id="subRight">
+        <circle cx="260" cy="200" r="35" fill="url(#subGrad)" stroke="#000" stroke-width="1" filter="url(#concave)"/>
+        <g id="subRightTicks" stroke="#8f9a86" stroke-width="0.8"></g>
+        <text x="260" y="183" text-anchor="middle" font-size="7.5" letter-spacing="1" fill="#8f9a86">ALT</text>
+        <text x="260" y="207" text-anchor="middle" font-weight="700" fill="#dbe6c4"><tspan id="altValue" font-size="14">--</tspan><tspan font-size="9" font-weight="600" fill="#9fab90" dx="1" dy="-4">m</tspan></text>
+      </g>
+
+      <g id="subBottom">
+        <circle cx="200" cy="259" r="34" fill="url(#subGrad)" stroke="#000" stroke-width="1" filter="url(#concave)"/>
+        <g id="subBottomTicks" stroke="#8f9a86" stroke-width="0.8"></g>
+        <g id="subBottomNumbers" font-family="'Helvetica Neue', Arial, sans-serif" font-weight="600"></g>
+        <!-- Chronograph minute totalizer: a small red hand, resting straight
+             up (0 min); one full turn = 30 elapsed minutes. -->
+        <circle cx="200" cy="259" r="2.6" fill="#e6402c"/>
+        <g id="cronoMinHand">
+          <line x1="0" y1="7" x2="0" y2="-26" stroke="#e6402c" stroke-width="1.6" stroke-linecap="round"/>
+        </g>
+      </g>
+
+      <!-- Main hands -->
+      <g id="hourHand">
+        <rect x="-6" y="-76" width="12" height="80" rx="4" fill="url(#lumeGrad)" stroke="#050505" stroke-width="0.7"/>
+      </g>
+      <g id="minHand">
+        <rect x="-4.5" y="-116" width="9" height="120" rx="3.5" fill="url(#lumeGrad)" stroke="#050505" stroke-width="0.7"/>
+      </g>
+      <g id="secHand">
+        <line x1="0" y1="20" x2="0" y2="0" stroke="var(--hand)" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="0" y1="0" x2="0" y2="-124" stroke="var(--hand)" stroke-width="1.8"/>
+        <polygon points="-5,-124 5,-124 0,-138" fill="var(--arrow)"/>
+      </g>
+
+      <!-- Chronograph central seconds hand: thin red needle, resting at 12
+           (0s); one full turn = 60 elapsed seconds. -->
+      <g id="chronoHand">
+        <line x1="0" y1="26" x2="0" y2="-10" stroke="#e6402c" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="0" y1="0" x2="0" y2="-150" stroke="#e6402c" stroke-width="1.1"/>
+      </g>
+
+      <circle cx="200" cy="200" r="6" fill="url(#pivotGrad)"/>
+
+      <ellipse cx="150" cy="118" rx="140" ry="66" fill="rgba(255,255,255,0.045)" transform="rotate(-18 150 118)"/>
+    </svg>
+     </div>
+     <div class="cara-darrere-watch">
+      <div class="gravat-revers">
+        <span class="nom">tenir molts rellotges</span>
+        <span class="nom">no et dona més temps</span>
+      </div>
+     </div>
+    </div>
+   </div>
+  </div>
+  <div class="calendar" id="calendarCard">
+    <div class="cal-header" id="calHeader"></div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="cal-location" id="calLocation">S/D</div>
+  </div>
+</div>
+    <audio id="unlockPing" preload="auto" src="data:audio/wav;base64,UklGRoYGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgATElTVBoAAABJTkZPSVNGVA4AAABMYXZmNjAuMTYuMTAwAGRhdGFABgAAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA=="></audio>
+    <audio id="cucutUnit" preload="auto" src="data:audio/mpeg;base64,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xRczRVAxCpHluDvwLATqg0UPEgEBEIotOZAGiEzNJUSAqrF3mDgAGtQtkgs8ULj0bgRd0TYaiq0dAC9jWoU6MHMOi8azpY8/URitNn3//HXccfq2a1q1VvU2rSgKzKwkAqFMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//uUZJ+P9N4yuIs70RQAAA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"></audio>
+    <audio id="campanaUnit" preload="auto" src="data:audio/mpeg;base64,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qf/i7ICFvF+3xdlIt1C+AhJVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//PEZAAAAAGkAAAAAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"></audio>
+
+<script>
+(function(){
+  const CX = 200, CY = 200;
+  const NS = 'http://www.w3.org/2000/svg';
+
+  function polar(angleDeg, r){
+    const rad = angleDeg * Math.PI/180;
+    return [CX + r*Math.sin(rad), CY - r*Math.cos(rad)];
+  }
+  function polarFrom(cx, cy, angleDeg, r){
+    const rad = angleDeg * Math.PI/180;
+    return [cx + r*Math.sin(rad), cy - r*Math.cos(rad)];
+  }
+  function tangent(angleDeg){
+    const rad = angleDeg * Math.PI/180;
+    return [Math.cos(rad), Math.sin(rad)];
+  }
+
+  // ---- Tachymeter: physically accurate scale ----
+  // angle for a given value: value = 3600/t(seconds), one full turn = 60s -> angle = 6*t = 21600/value
+  const tachyValues = [60,65,70,75,80,85,90,100,110,120,130,140,150,160,170,180,190,200,225,250,275,300,350,400,500];
+  const tachyGroup = document.getElementById('tachyGroup');
+  const tachyMajorTicks = document.getElementById('tachyMajorTicks');
+  const tachyMinorTicks = document.getElementById('tachyMinorTicks');
+
+  tachyValues.forEach(val=>{
+    const angle = 21600/val;
+    const [x,y] = polar(angle, 163);
+    const t = document.createElementNS(NS,'text');
+    t.setAttribute('x', x.toFixed(2));
+    t.setAttribute('y', y.toFixed(2));
+    t.setAttribute('text-anchor','middle');
+    t.setAttribute('dominant-baseline','middle');
+    t.setAttribute('transform', `rotate(${angle.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)})`);
+    t.textContent = val;
+    tachyGroup.appendChild(t);
+
+    const [x1,y1] = polar(angle, 176);
+    const [x2,y2] = polar(angle, 171);
+    const l = document.createElementNS(NS,'line');
+    l.setAttribute('x1',x1.toFixed(2)); l.setAttribute('y1',y1.toFixed(2));
+    l.setAttribute('x2',x2.toFixed(2)); l.setAttribute('y2',y2.toFixed(2));
+    tachyMajorTicks.appendChild(l);
+  });
+
+  // minor ticks: every whole second from 8 to 59 (skip where a major tick already sits)
+  const majorAngles = new Set(tachyValues.map(v => Math.round((21600/v)*10)));
+  for(let t=8; t<60; t++){
+    const angle = 6*t;
+    const rounded = Math.round(angle*10);
+    if(majorAngles.has(rounded)) continue;
+    const [x1,y1] = polar(angle, 176);
+    const [x2,y2] = polar(angle, 172.5);
+    const l = document.createElementNS(NS,'line');
+    l.setAttribute('x1',x1.toFixed(2)); l.setAttribute('y1',y1.toFixed(2));
+    l.setAttribute('x2',x2.toFixed(2)); l.setAttribute('y2',y2.toFixed(2));
+    tachyMinorTicks.appendChild(l);
+  }
+
+  // ---- Case flutes ----
+  const caseFlutes = document.getElementById('caseFlutes');
+  for(let i=0;i<60;i++){
+    const angle = i*6;
+    const [x1,y1] = polar(angle, 191);
+    const [x2,y2] = polar(angle, 186);
+    const l = document.createElementNS(NS,'line');
+    l.setAttribute('x1',x1.toFixed(2)); l.setAttribute('y1',y1.toFixed(2));
+    l.setAttribute('x2',x2.toFixed(2)); l.setAttribute('y2',y2.toFixed(2));
+    caseFlutes.appendChild(l);
+  }
+
+  // ---- Minute ticks ----
+  const ticksGroup = document.getElementById('ticksGroup');
+  for(let i=0;i<60;i++){
+    if(i % 5 === 0) continue;
+    const angle = i*6;
+    const [x1,y1] = polar(angle, 147);
+    const [x2,y2] = polar(angle, 140);
+    const l = document.createElementNS(NS,'line');
+    l.setAttribute('x1',x1.toFixed(2)); l.setAttribute('y1',y1.toFixed(2));
+    l.setAttribute('x2',x2.toFixed(2)); l.setAttribute('y2',y2.toFixed(2));
+    ticksGroup.appendChild(l);
+  }
+
+  // ---- Hour markers (explicit polygons) ----
+  const markersGroup = document.getElementById('markersGroup');
+  for(let i=0;i<12;i++){
+    const angle = i*30;
+    const isTwelve = i===0;
+    const nearSub = (i===3 || i===6 || i===9);
+    const outerR = 147;
+    const len = isTwelve ? 24 : (nearSub ? 20 : 13);
+    const innerR = outerR - len;
+    const hw = (isTwelve ? 4 : 3);
+    const [tx,ty] = tangent(angle);
+    const [ox,oy] = polar(angle, outerR);
+    const [ix,iy] = polar(angle, innerR);
+    const p1 = [ox - tx*hw, oy - ty*hw];
+    const p2 = [ox + tx*hw, oy + ty*hw];
+    const p3 = [ix + tx*hw, iy + ty*hw];
+    const p4 = [ix - tx*hw, iy - ty*hw];
+    const poly = document.createElementNS(NS,'polygon');
+    poly.setAttribute('points', [p1,p2,p3,p4].map(p=>p.map(v=>v.toFixed(2)).join(',')).join(' '));
+    markersGroup.appendChild(poly);
+  }
+
+  // ---- Subdial tick marks ----
+  // `count` = how many divisions make a full turn of the hand on that
+  // subdial (12 for the decorative left/right dials). `majorEvery`, when
+  // given, draws a longer tick every N divisions so a fine scale (e.g. the
+  // 30-minute chronograph totalizer) stays readable.
+  function drawSubTicks(groupId, cx, cy, r, count, majorEvery){
+    count = count || 12;
+    const g = document.getElementById(groupId);
+    for(let i=0;i<count;i++){
+      const angle = i*(360/count);
+      const rad = angle * Math.PI/180;
+      const isMajor = majorEvery ? (i % majorEvery === 0) : true;
+      const inset = isMajor ? 4 : 2.4;
+      const x1 = cx + (r-inset)*Math.sin(rad), y1 = cy - (r-inset)*Math.cos(rad);
+      const x2 = cx + r*Math.sin(rad), y2 = cy - r*Math.cos(rad);
+      const l = document.createElementNS(NS,'line');
+      l.setAttribute('x1',x1.toFixed(2)); l.setAttribute('y1',y1.toFixed(2));
+      l.setAttribute('x2',x2.toFixed(2)); l.setAttribute('y2',y2.toFixed(2));
+      if(!isMajor) l.setAttribute('stroke-width','0.5');
+      g.appendChild(l);
+    }
+  }
+  drawSubTicks('subLeftTicks', 140, 200, 33, 12);
+  drawSubTicks('subRightTicks', 260, 200, 33, 12);
+  // Chronograph minute totalizer: 30 divisions per revolution (matching
+  // cronoMin*12 in frame()), with a major tick every 5 minutes.
+  drawSubTicks('subBottomTicks', 200, 259, 32, 30, 5);
+
+  // Numerals at every 5-minute major tick of the chronograph totalizer.
+  function drawSubNumbers(groupId, cx, cy, r, totalCount, values){
+    const g = document.getElementById(groupId);
+    values.forEach(v => {
+      const angle = v * (360/totalCount);
+      const rad = angle * Math.PI/180;
+      const x = cx + r*Math.sin(rad);
+      const y = cy - r*Math.cos(rad);
+      const t = document.createElementNS(NS,'text');
+      t.setAttribute('x', x.toFixed(2));
+      t.setAttribute('y', (y+2.6).toFixed(2));
+      t.setAttribute('text-anchor','middle');
+      t.setAttribute('font-size','7.5');
+      t.setAttribute('fill','#8f9a86');
+      t.textContent = v;
+      g.appendChild(t);
+    });
+  }
+  drawSubNumbers('subBottomNumbers', 200, 259, 24, 30, [5,10,15,20,25]);
+
+  // ---- Live hands ----
+  const hourHand = document.getElementById('hourHand');
+  const minHand = document.getElementById('minHand');
+  const secHand = document.getElementById('secHand');
+  const chronoHand = document.getElementById('chronoHand');
+  const chronoMinHand = document.getElementById('cronoMinHand');
+
+  // ---- Chronograph (classic two-pusher mechanism) -------------------------
+  // Left pusher: start/stop. Right pusher: while running, first press
+  // freezes the hands (a "split" reading) though the chronograph keeps
+  // timing underneath; a second press releases the hands, which jump
+  // straight to the live elapsed time and keep going. While stopped, the
+  // right pusher resets everything to zero.
+  let cronoRunning = false;
+  let cronoElapsedMs = 0;      // accumulated time while not currently running
+  let cronoStartedAt = 0;      // performance.now() at the last start/resume
+  let cronoHandsFrozen = false;
+  let cronoFrozenMs = 0;
+
+  // Eased return-to-zero tweens for the reset gesture: each is
+  // {from, to, dur, start} in degrees / ms (performance.now() based).
+  // Before the midpoint of its course, the hand retraces its own path
+  // backward (counter-clockwise) straight to 0. Past the midpoint, it
+  // keeps going forward (clockwise), completing the lap it was already
+  // making, back around to 0/360.
+  let cronoSecAnim = null;
+  let cronoMinAnim = null;
+  const CRONO_RESET_SPEED = 110; // deg/s — "lentament"
+
+  function cronoLiveElapsedMs(){
+    return cronoElapsedMs + (cronoRunning ? performance.now() - cronoStartedAt : 0);
+  }
+
+  const cronoStartBtn = document.getElementById('cronoStartBtn');
+  const cronoSplitBtn = document.getElementById('cronoSplitBtn');
+
+  cronoStartBtn.addEventListener('click', () => {
+    cronoSecAnim = null;
+    cronoMinAnim = null;
+    if(cronoRunning){
+      // Stop: bank the elapsed time and always reveal the true reading,
+      // even if the hands happened to be frozen on a split at that moment.
+      cronoElapsedMs = cronoLiveElapsedMs();
+      cronoRunning = false;
+      cronoHandsFrozen = false;
+      cronoStartBtn.classList.remove('is-active');
+    } else {
+      cronoStartedAt = performance.now();
+      cronoRunning = true;
+      cronoHandsFrozen = false;
+      cronoStartBtn.classList.add('is-active');
+    }
+  });
+
+  cronoSplitBtn.addEventListener('click', () => {
+    if(cronoRunning){
+      if(!cronoHandsFrozen){
+        cronoSecAnim = null;
+        cronoMinAnim = null;
+        cronoFrozenMs = cronoLiveElapsedMs();
+        cronoHandsFrozen = true;
+      } else {
+        // Release: instead of a sudden jump, sweep the hands forward from
+        // the frozen split reading up to the live reading, at the same
+        // "lentament" speed as the return-to-zero — but since the
+        // chronograph keeps running underneath, the live reading is a
+        // moving target. Solve for the duration T where the fast catch-up
+        // hand (at CRONO_RESET_SPEED) meets the still-advancing live hand
+        // (at its normal speed) exactly: T = gap / (catchupSpeed - liveSpeed).
+        const SEC_SPEED = 6;        // deg/s a live seconds hand advances
+        const MIN_SPEED = 12 / 60;  // deg/s a live totalizer minute hand advances
+        const liveMs = cronoLiveElapsedMs();
+
+        const fromSecDeg = (cronoFrozenMs/1000) * 6;         // unbounded, no modulo
+        const liveSecDeg = (liveMs/1000) * 6;
+        const gapSec = liveSecDeg - fromSecDeg;
+        if(gapSec > 0.05){
+          const Tsec = gapSec / (CRONO_RESET_SPEED - SEC_SPEED);
+          cronoSecAnim = { from: fromSecDeg, to: fromSecDeg + CRONO_RESET_SPEED*Tsec, dur: Tsec*1000, start: performance.now() };
+        } else {
+          cronoSecAnim = null;
+        }
+
+        const fromMinDeg = (cronoFrozenMs/1000/60) * 12;     // unbounded, no modulo
+        const liveMinDeg = (liveMs/1000/60) * 12;
+        const gapMin = liveMinDeg - fromMinDeg;
+        if(gapMin > 0.05){
+          const Tmin = gapMin / (CRONO_RESET_SPEED - MIN_SPEED);
+          cronoMinAnim = { from: fromMinDeg, to: fromMinDeg + CRONO_RESET_SPEED*Tmin, dur: Tmin*1000, start: performance.now() };
+        } else {
+          cronoMinAnim = null;
+        }
+
+        cronoHandsFrozen = false;
+      }
+    } else {
+      cronoSecAnim = null;
+      cronoMinAnim = null;
+      const curSec = (cronoElapsedMs/1000) % 60;
+      const curMin = (cronoElapsedMs/1000/60) % 30;
+      const curSecDeg = curSec*6;
+      const curMinDeg = curMin*12;
+
+      const secTo = (curSec < 30) ? 0 : 360;
+      const secTravel = Math.abs(secTo - curSecDeg);
+      cronoSecAnim = { from: curSecDeg, to: secTo, dur: Math.max(250, secTravel/CRONO_RESET_SPEED*1000), start: performance.now() };
+
+      const minTo = (curMin <= 15) ? 0 : 360;
+      const minTravel = Math.abs(minTo - curMinDeg);
+      cronoMinAnim = { from: curMinDeg, to: minTo, dur: Math.max(250, minTravel/CRONO_RESET_SPEED*1000), start: performance.now() };
+
+      cronoElapsedMs = 0;
+      cronoHandsFrozen = false;
+      cronoFrozenMs = 0;
+    }
+  });
+
+  function frame(){
+    const now = new Date();
+    const s = now.getSeconds() + now.getMilliseconds()/1000;
+    const m = now.getMinutes() + s/60;
+    const h = (now.getHours()%12) + m/60;
+
+    const secDeg = s*6;
+    const minDeg = m*6;
+    const hourDeg = h*30;
+
+    hourHand.setAttribute('transform', `translate(${CX} ${CY}) rotate(${hourDeg})`);
+    minHand.setAttribute('transform', `translate(${CX} ${CY}) rotate(${minDeg})`);
+    secHand.setAttribute('transform', `translate(${CX} ${CY}) rotate(${secDeg})`);
+
+    const displayMs = cronoHandsFrozen ? cronoFrozenMs : cronoLiveElapsedMs();
+
+    let cronoSecDeg;
+    if(cronoSecAnim){
+      const t = Math.min(1, (performance.now() - cronoSecAnim.start) / cronoSecAnim.dur);
+      cronoSecDeg = cronoSecAnim.from + (cronoSecAnim.to - cronoSecAnim.from)*t;
+      if(t >= 1) cronoSecAnim = null;
+    } else {
+      cronoSecDeg = ((displayMs/1000) % 60) * 6;
+    }
+
+    let cronoMinDeg;
+    if(cronoMinAnim){
+      const t = Math.min(1, (performance.now() - cronoMinAnim.start) / cronoMinAnim.dur);
+      cronoMinDeg = cronoMinAnim.from + (cronoMinAnim.to - cronoMinAnim.from)*t;
+      if(t >= 1) cronoMinAnim = null;
+    } else {
+      cronoMinDeg = ((displayMs/1000/60) % 30) * 12;
+    }
+
+    chronoHand.setAttribute('transform', `translate(${CX} ${CY}) rotate(${cronoSecDeg})`);
+    chronoMinHand.setAttribute('transform', `translate(200 259) rotate(${cronoMinDeg})`);
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---- Altimeter (right subdial) + Temperature (left subdial) + Location, from device location ----
+  const altValue = document.getElementById('altValue');
+  const tempValue = document.getElementById('tempValue');
+  const calLocation = document.getElementById('calLocation');
+  let lastTempFetch = 0;
+  let lastLocFetch = 0;
+
+  if('geolocation' in navigator){
+    navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, altitude } = pos.coords;
+        altValue.textContent = (altitude === null || altitude === undefined) ? 'S/D' : Math.round(altitude);
+
+        const now = Date.now();
+        if(now - lastTempFetch > 5*60*1000){
+          lastTempFetch = now;
+          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`)
+            .then(r => r.json())
+            .then(data => {
+              const t = data && data.current_weather ? data.current_weather.temperature : null;
+              tempValue.textContent = (t === null || t === undefined) ? 'S/D' : Math.round(t);
+            })
+            .catch(() => { tempValue.textContent = 'S/D'; });
+        }
+
+        if(now - lastLocFetch > 5*60*1000){
+          lastLocFetch = now;
+          fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=ca`)
+            .then(r => r.json())
+            .then(data => {
+              const town = data && (data.locality || data.city || data.principalSubdivision);
+              const country = data && data.countryName;
+              const subdivision = data && data.principalSubdivision;
+              const catalanCountries = ['Catalunya','Comunitat Valenciana','País Valencià','Illes Balears'];
+              const region = (data && data.countryCode === 'ES' && catalanCountries.includes(subdivision))
+                ? subdivision
+                : country;
+              calLocation.textContent = town ? (region ? `${town}, ${region}` : town) : 'S/D';
+            })
+            .catch(() => { calLocation.textContent = 'S/D'; });
+        }
+      },
+      () => { altValue.textContent = 'S/D'; tempValue.textContent = 'S/D'; calLocation.textContent = 'S/D'; },
+      { enableHighAccuracy:true, maximumAge:5000, timeout:10000 }
+    );
+  } else {
+    altValue.textContent = 'S/D';
+    tempValue.textContent = 'S/D';
+    calLocation.textContent = 'S/D';
+  }
+
+  // ---- Month calendar (Monday-Sunday), current day highlighted ----
+  const monthNames = ['GENER','FEBRER','MARÇ','ABRIL','MAIG','JUNY','JULIOL','AGOST','SETEMBRE','OCTUBRE','NOVEMBRE','DESEMBRE'];
+  const dow = ['DL','DT','DC','DJ','DV','DS','DG'];
+
+  function buildCalendar(){
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const today = now.getDate();
+
+    document.getElementById('calHeader').textContent = `${monthNames[month]} ${year}`;
+
+    const grid = document.getElementById('calGrid');
+    grid.innerHTML = '';
+    dow.forEach(d=>{
+      const el = document.createElement('div');
+      el.className = 'cal-dow';
+      el.textContent = d;
+      grid.appendChild(el);
+    });
+
+    const firstDay = new Date(year, month, 1);
+    // JS getDay(): 0=Sunday..6=Saturday; convert to Monday-first index (0=Mon..6=Sun)
+    let startIdx = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+
+    for(let i=0;i<startIdx;i++){
+      const el = document.createElement('div');
+      el.className = 'cal-day empty';
+      el.textContent = '.';
+      grid.appendChild(el);
+    }
+    for(let d=1; d<=daysInMonth; d++){
+      const el = document.createElement('div');
+      el.className = 'cal-day' + (d===today ? ' today' : '');
+      el.textContent = d;
+      grid.appendChild(el);
+    }
+  }
+  buildCalendar();
+
+  // ---- Hourly flip: watch turns over for ~10s to reveal the engraved back,
+  // with the cuckoo call playing in sync, then returns to the dial ----
+  const watchWrapEl = document.querySelector('.watch-wrap');
+  const watchFlip = document.getElementById('watchFlip');
+  const watchFlipWrap = document.getElementById('watchFlipWrap');
+  const cucutUnit = document.getElementById('cucutUnit');
+  const campanaUnit = document.getElementById('campanaUnit');
+  const unlockPing = document.getElementById('unlockPing');
+
+  // ---- Build the "edge" as a real stack of thin discs, not a single flat
+  // one. A single flat layer goes edge-on (invisible) at the very same
+  // moment the front/back faces do, leaving a see-through gap mid-spin.
+  // Stacking many slightly-offset layers along Z keeps something angled
+  // toward the camera at every point of the turn, reading as a solid rim. ----
+  (function generaVolumCilindreWatch(){
+    const contenidor = document.getElementById('cosCilindreWatch');
+    if(!contenidor) return;
+    const totalCapes = 24;
+    const gruixTotal = 38; // slightly under 2x the face translateZ (40px), avoids z-fighting
+    for(let i = 0; i < totalCapes; i++){
+      const capa = document.createElement('div');
+      capa.className = 'capa-volum-watch';
+      const zPos = -gruixTotal/2 + (i * (gruixTotal / (totalCapes - 1)));
+      capa.style.transform = `translateZ(${zPos.toFixed(2)}px)`;
+      contenidor.appendChild(capa);
+    }
+  })();
+
+  // Force a true square (largest that fits), mirroring how the old plain
+  // <svg> used to letterbox itself inside a non-square flex box.
+  function fitWatchSquare(){
+    const rect = watchWrapEl.getBoundingClientRect();
+    const size = Math.max(0, Math.min(rect.width, rect.height));
+    if(size > 0){
+      watchFlipWrap.style.width = size + 'px';
+      watchFlipWrap.style.height = size + 'px';
+    }
+  }
+  fitWatchSquare();
+  window.addEventListener('resize', fitWatchSquare);
+  window.addEventListener('orientationchange', () => setTimeout(fitWatchSquare, 60));
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', fitWatchSquare);
+  }
+  let audioUnlocked = false;
+  let girant = false;
+
+  // ---- Mechanical "cloc" (synthesized, no audio file) --------------------
+  // Same technique as the Orloj index: a short lowpass-filtered noise burst
+  // (the "clic" of a latch) plus a triangle-wave thump sweeping 180Hz->60Hz
+  // (the "clonc" of the mechanism settling), played together. Marks the
+  // instant the turn stops and the dial is facing forward again.
+  let audioCtx = null;
+  function obtenirAudioCtx(){
+    if(!audioCtx){
+      try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e){ return null; }
+    }
+    if(audioCtx.state === 'suspended'){ audioCtx.resume().catch(() => {}); }
+    return audioCtx;
+  }
+  function reproduirCloc(){
+    const ctx = obtenirAudioCtx();
+    if(!ctx) return;
+    const quan = ctx.currentTime;
+    const midaBufer = Math.max(1, Math.floor(ctx.sampleRate * 0.015));
+    const buffer = ctx.createBuffer(1, midaBufer, ctx.sampleRate);
+    const dades = buffer.getChannelData(0);
+    for(let i = 0; i < midaBufer; i++){
+      dades[i] = (Math.random()*2-1) * Math.pow(1 - i/midaBufer, 1.5);
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filtre = ctx.createBiquadFilter();
+    filtre.type = 'lowpass';
+    filtre.frequency.value = 1800;
+    const gainClic = ctx.createGain();
+    gainClic.gain.value = 0.5;
+    src.connect(filtre);
+    filtre.connect(gainClic);
+    gainClic.connect(ctx.destination);
+    src.start(quan);
+    src.stop(quan + 0.02);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(180, quan);
+    osc.frequency.exponentialRampToValueAtTime(60, quan + 0.12);
+    const gainThump = ctx.createGain();
+    gainThump.gain.setValueAtTime(0.0001, quan);
+    gainThump.gain.linearRampToValueAtTime(0.5, quan + 0.008);
+    gainThump.gain.exponentialRampToValueAtTime(0.0008, quan + 0.22);
+    osc.connect(gainThump);
+    gainThump.connect(ctx.destination);
+    osc.start(quan);
+    osc.stop(quan + 0.25);
+  }
+
+  function unlockAudio(){
+    if(audioUnlocked) return;
+    audioUnlocked = true;
+    obtenirAudioCtx();
+    unlockPing.play().catch(() => {});
+    ensureBuffersDecoded();
+  }
+  document.addEventListener('pointerdown', unlockAudio, { once:true, passive:true });
+
+  // ---- Cuckoo+bell striking sequence, joined into one continuous phrase --
+  // The source file's cuckoo+bell isn't two clean separate hits with a gap;
+  // it reads as one continuous harmonic thread. To get that here with only
+  // a short sampled cuckoo call and a short sampled bell attack, each bell
+  // is extended with a synthesized resonant tail (plain decaying sine
+  // partials, like a real bell's overtones) that rings on past the sample
+  // itself; the NEXT cuckoo's entrance is then faded in while that tail is
+  // still audibly decaying, so the two cross-fade into each other instead
+  // of the sequence sounding like separate stuttering clips.
+  const PARELL_ESPAI = 0.85;    // seconds between the start of each pair
+  const CAMPANA_RETARD = 0.28;  // seconds after the cuckoo that the bell follows
+  const CUA_RESSO = CAMPANA_RETARD + 0.16; // when the bell's ringing tail begins
+  const CUA_FINAL = 1.0;        // seconds the last strike's tail is left to ring out
+  const GUANY_CUCUT = 1.0;      // cuckoo: the lead voice, at full level
+  const GUANY_CAMPANA = 0.22;   // bell attack sample: well underneath the cuckoo, softened
+  const GUANY_RESSO = 0.035;    // bell's synthesized ring-out: a faint wash, not a second lead
+  const CAMPANA_LOWPASS = 3200; // tames the sample's bright/harsh top end
+
+  let cucutBuffer = null, campanaBuffer = null, buffersReady = null;
+  function ensureBuffersDecoded(){
+    const ctx = obtenirAudioCtx();
+    if(!ctx) return Promise.resolve(false);
+    if(buffersReady) return buffersReady;
+    buffersReady = Promise.all([
+      fetch(cucutUnit.currentSrc || cucutUnit.src).then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)),
+      fetch(campanaUnit.currentSrc || campanaUnit.src).then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b))
+    ]).then(([cb, pb]) => { cucutBuffer = cb; campanaBuffer = pb; return true; })
+      .catch(err => { console.warn('Rellotge: no s\'han pogut preparar els sons', err); return false; });
+    return buffersReady;
+  }
+
+  function playBuffer(buffer, ctxTime, fadeInSec, peakGain, lowpassHz){
+    const ctx = obtenirAudioCtx();
+    if(!ctx || !buffer) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const g = ctx.createGain();
+    let lastNode = src;
+    if(lowpassHz){
+      // Extra safety net against a bright/harsh top end on the bell sample,
+      // independent of how the source file itself was mastered.
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = lowpassHz;
+      src.connect(lp);
+      lastNode = lp;
+    }
+    lastNode.connect(g);
+    g.connect(ctx.destination);
+    const fi = Math.max(0.004, fadeInSec || 0.01);
+    const peak = peakGain == null ? 1 : peakGain;
+    g.gain.setValueAtTime(0.0001, ctxTime);
+    g.gain.linearRampToValueAtTime(peak, ctxTime + fi);
+    src.start(ctxTime);
+    src.stop(ctxTime + buffer.duration + 0.05);
+  }
+
+  // Synthesized bell resonance: a few decaying sine partials (a simple
+  // harmonic stack, like a small bell's overtones) standing in for the
+  // sample's own ring-out, so its length and fade are fully under our
+  // control regardless of how short the sampled attack is.
+  function playBellTail(ctxTime, durSec, peakGain){
+    const ctx = obtenirAudioCtx();
+    if(!ctx) return;
+    const partials = [ {freq:540, mul:1}, {freq:812, mul:0.55}, {freq:1084, mul:0.25} ];
+    partials.forEach(p => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = p.freq;
+      const g = ctx.createGain();
+      const peak = (peakGain || 0.11) * p.mul;
+      g.gain.setValueAtTime(0.0001, ctxTime);
+      g.gain.linearRampToValueAtTime(peak, ctxTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0006, ctxTime + Math.max(0.1, durSec));
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(ctxTime);
+      osc.stop(ctxTime + Math.max(0.1, durSec) + 0.05);
+    });
+  }
+
+  function playChimeSequence(n){
+    ensureBuffersDecoded().then(ok => {
+      const ctx = obtenirAudioCtx();
+      if(!ctx) return;
+      const t0 = ctx.currentTime + 0.03;
+      for(let i = 0; i < n; i++){
+        const pairStart = t0 + i * PARELL_ESPAI;
+        const isLast = (i === n - 1);
+        // Cuckoo: a quick clean attack for the very first call, but a soft
+        // emerging fade-in for every later one, timed to land while the
+        // previous bell's tail is still ringing underneath it.
+        if(ok && cucutBuffer) playBuffer(cucutBuffer, pairStart, i === 0 ? 0.02 : 0.14, GUANY_CUCUT);
+        if(ok && campanaBuffer) playBuffer(campanaBuffer, pairStart + CAMPANA_RETARD, 0.006, GUANY_CAMPANA, CAMPANA_LOWPASS);
+        const tailDur = isLast ? CUA_FINAL : (PARELL_ESPAI - CUA_RESSO + 0.18);
+        playBellTail(pairStart + CUA_RESSO, tailDur, GUANY_RESSO);
+      }
+    });
+  }
+
+  function chimeSpanSeconds(n){
+    if(n <= 0) return 0;
+    return (n - 1) * PARELL_ESPAI + CUA_RESSO + CUA_FINAL;
+  }
+
+  // How long the pushers retreat outward before the dial actually starts
+  // turning, so the withdrawal reads as leading the flip rather than
+  // coinciding with it.
+  const PUSHER_PRELUDE_MS = 380;
+
+  function triggerFlip(n){
+    if(girant) return;
+    girant = true;
+    // Give the turn enough time to hold on the back face for every strike to
+    // be heard: a short minimum for a low count, more for a full 12.
+    const durSec = Math.max(6, chimeSpanSeconds(n) + 1.5);
+    watchFlip.style.setProperty('--gir-dur', durSec.toFixed(2) + 's');
+
+    // Pushers ease outward a touch first, then the dial turns.
+    cronoStartBtn.classList.add('pusher-retreat');
+    cronoSplitBtn.classList.add('pusher-retreat');
+
+    setTimeout(() => {
+      watchFlip.classList.remove('girant');
+      void watchFlip.offsetWidth; // restart animation
+      watchFlip.classList.add('girant');
+      playChimeSequence(n);
+    }, PUSHER_PRELUDE_MS);
+  }
+  watchFlip.addEventListener('animationend', () => {
+    girant = false;
+    reproduirCloc();
+    cronoStartBtn.classList.remove('pusher-retreat');
+    cronoSplitBtn.classList.remove('pusher-retreat');
+  });
+
+  // Schedule the automatic flip for each exact hour change: strikes the
+  // watch's own hour count (1-12, both for am and pm) in cuckoo+bell pairs.
+  function scheduleNextHourFlip(){
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours()+1, 0, 0, 50);
+    const delay = next.getTime() - now.getTime();
+    setTimeout(() => {
+      const h12 = next.getHours() % 12;
+      const compteHora = h12 === 0 ? 12 : h12;
+      triggerFlip(compteHora);
+      scheduleNextHourFlip();
+    }, delay);
+  }
+  scheduleNextHourFlip();
+})();
+</script>
+</body>
+</html>
