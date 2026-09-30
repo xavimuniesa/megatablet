@@ -366,26 +366,35 @@
   .cal-header.lliscant, .cal-grid.lliscant{ transition:none; }
   .cal-header.fora-esq, .cal-grid.fora-esq{ transform:translateX(-28px); opacity:0; }
   .cal-header.fora-dre, .cal-grid.fora-dre{ transform:translateX(28px); opacity:0; }
-  .cal-header.no-actual{ cursor:pointer; }
-  .cal-header.no-actual::after{
-    content:' ↺';
-    color:var(--accent);
-    font-size:.8em;
-  }
-  .cal-dots{
+  /* double-tap the month name to jump back to the current month */
+  .cal-header{ touch-action:manipulation; cursor:default; }
+  .cal-avui-fila{
     display:flex;
     justify-content:center;
-    gap:7px;
     margin-top:clamp(6px,1.2vh,10px);
+    min-height:26px;
   }
-  .cal-dots span{
-    width:6px; height:6px;
-    border-radius:50%;
-    background:#3a3c3f;
-    transition:background .2s ease, transform .2s ease;
+  .cal-avui{
+    font:inherit;
+    font-size:clamp(10.5px,1.8vh,12.5px);
+    font-weight:700;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--accent);
+    background:rgba(199,212,169,.08);
+    border:1px solid rgba(199,212,169,.45);
+    border-radius:999px;
+    padding:4px 12px;
+    cursor:pointer;
+    touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+    transition:opacity .2s ease, background .15s ease;
   }
-  .cal-dots span.actiu{ background:var(--accent); transform:scale(1.25); }
-  .cal-dots span.avui:not(.actiu){ background:#6b7362; }
+  .cal-avui:hover{ background:rgba(199,212,169,.16); }
+  .cal-avui:active{ background:rgba(199,212,169,.24); }
+  /* hidden (but still taking its place) while showing the current month,
+     so the card never changes height */
+  .cal-avui.amagat{ visibility:hidden; opacity:0; }
   /* Tap a festiu to see which holiday it is; tap it again to close. */
   .cal-grid{ position:relative; }
   .cal-day.holiday{ cursor:pointer; -webkit-tap-highlight-color:transparent; }
@@ -721,7 +730,7 @@
   <div class="calendar" id="calendarCard">
     <div class="cal-header" id="calHeader"></div>
     <div class="cal-grid" id="calGrid"></div>
-    <div class="cal-dots" id="calDots" aria-hidden="true"></div>
+    <div class="cal-avui-fila"><button type="button" class="cal-avui amagat" id="calAvui">↺ Torna a avui</button></div>
     <div class="cal-location" id="calLocation">S/D</div>
   </div>
 </div>
@@ -1208,8 +1217,7 @@
     return cacheFestius[year];
   }
 
-  const MAX_DESPLACAMENT = 2;   // months either side of the current one
-  let calDesplacament = 0;
+  let calDesplacament = 0;   // months away from the current one, unlimited
   function buildCalendar(){
     const now = new Date();
     const vista = new Date(now.getFullYear(), now.getMonth() + calDesplacament, 1);
@@ -1220,19 +1228,9 @@
 
     const header = document.getElementById('calHeader');
     header.textContent = `${monthNames[month]} ${year}`;
-    header.classList.toggle('no-actual', calDesplacament !== 0);
-    header.title = calDesplacament !== 0 ? 'Torna al mes actual' : '';
-
-    const dots = document.getElementById('calDots');
-    if(dots){
-      dots.innerHTML = '';
-      for(let k=-MAX_DESPLACAMENT; k<=MAX_DESPLACAMENT; k++){
-        const s = document.createElement('span');
-        if(k === calDesplacament) s.className = 'actiu';
-        if(k === 0) s.classList.add('avui');
-        dots.appendChild(s);
-      }
-    }
+    header.title = calDesplacament !== 0 ? 'Doble toc: torna al mes actual' : '';
+    const botoAvui = document.getElementById('calAvui');
+    if(botoAvui) botoAvui.classList.toggle('amagat', calDesplacament === 0);
 
     const grid = document.getElementById('calGrid');
     grid.innerHTML = '';
@@ -1337,7 +1335,8 @@
   })();
 
   // ---- Swipe the calendar left/right: next / previous month, limited to
-  // two months either way; tap the month name to jump back to today. ----
+  // with no limit either way; the "Torna a avui" button, a double tap on
+  // the month name or the Home key jump back to the current month. ----
   (function lliscaCalendari(){
     const card = document.getElementById('calendarCard');
     const header = document.getElementById('calHeader');
@@ -1346,8 +1345,8 @@
     let x0 = null, y0 = null, acabaDeLliscar = false, animant = false;
 
     function canviaMes(pas){
-      const nou = Math.max(-MAX_DESPLACAMENT, Math.min(MAX_DESPLACAMENT, calDesplacament + pas));
-      if(nou === calDesplacament || animant) return;
+      const nou = calDesplacament + pas;
+      if(pas === 0 || animant) return;
       animant = true;
       if(window.__tancaFestiu) window.__tancaFestiu();
       const surt = pas > 0 ? 'fora-esq' : 'fora-dre';
@@ -1379,13 +1378,22 @@
     card.addEventListener('click', e => {
       if(acabaDeLliscar){ e.stopPropagation(); e.preventDefault(); }
     }, true);
+    const tornaAvui = () => { if(calDesplacament !== 0) canviaMes(-calDesplacament); };
+    const botoAvui = document.getElementById('calAvui');
+    if(botoAvui) botoAvui.addEventListener('click', tornaAvui);
+    // double tap / double click on the month name (touch devices don't
+    // reliably fire dblclick, so time two taps ourselves)
+    let darrerToc = 0;
     header.addEventListener('click', () => {
-      if(calDesplacament !== 0) canviaMes(-calDesplacament);
+      const ara = Date.now();
+      if(ara - darrerToc < 400){ darrerToc = 0; tornaAvui(); }
+      else darrerToc = ara;
     });
     // keyboard on desktop
     document.addEventListener('keydown', e => {
       if(e.key === 'ArrowRight') canviaMes(1);
       else if(e.key === 'ArrowLeft') canviaMes(-1);
+      else if(e.key === 'Home') tornaAvui();
     });
   })();
 
