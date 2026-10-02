@@ -493,6 +493,60 @@
   @media (orientation:portrait) and (min-height:900px){
     .watch-wrap{ max-height:min(62vh, 620px); }
   }
+
+  /* ---- Portrait: give the watch the room. The calendar becomes a compact
+     card (tighter rows, smaller type) and the "back to today" button moves
+     up beside the month name instead of reserving its own row. ---- */
+  @media (orientation:portrait){
+    /* watch box never taller than it is wide, so no dead band above/below
+       it; the watch + calendar pair is then centred as a whole */
+    .stage{ gap:clamp(10px,2vh,18px); justify-content:center; }
+    .watch-wrap{
+      flex:0 1 auto;
+      height:calc(100vw - 28px - env(safe-area-inset-left) - env(safe-area-inset-right));
+      max-height:620px;
+    }
+    .calendar{
+      position:relative;
+      padding:clamp(8px,1.4vh,12px) clamp(10px,3vw,14px) clamp(8px,1.3vh,12px);
+      border-radius:14px;
+    }
+    .cal-header{
+      font-size:clamp(12px,2vh,16.5px);
+      line-height:1.5;
+      margin-bottom:clamp(3px,0.7vh,7px);
+    }
+    .cal-grid{ gap:clamp(1px,0.35vh,3px); }
+    .cal-dow{
+      font-size:clamp(9px,1.5vh,12px);
+      padding-bottom:clamp(1px,0.35vh,3px);
+    }
+    .cal-day{
+      font-size:clamp(11px,1.85vh,15.5px);
+      padding:clamp(1px,0.5vh,4px) 0;
+      border-radius:7px;
+    }
+    .cal-avui-fila{
+      position:absolute;
+      top:clamp(8px,1.4vh,12px);
+      right:clamp(10px,3vw,14px);
+      height:calc(clamp(12px,2vh,16.5px) * 1.5);
+      min-height:0;
+      margin:0;
+      align-items:center;
+    }
+    .cal-avui{
+      padding:1px 8px;
+      font-size:clamp(9px,1.4vh,11px);
+      letter-spacing:.06em;
+    }
+    .cal-avui .avui-llarg{ display:none; }
+    .cal-location{
+      font-size:clamp(9.5px,1.5vh,11.5px);
+      margin-top:clamp(5px,0.9vh,8px);
+      padding-top:clamp(5px,0.9vh,8px);
+    }
+  }
 </style>
 </head>
 <body>
@@ -730,7 +784,7 @@
   <div class="calendar" id="calendarCard">
     <div class="cal-header" id="calHeader"></div>
     <div class="cal-grid" id="calGrid"></div>
-    <div class="cal-avui-fila"><button type="button" class="cal-avui amagat" id="calAvui">↺ Torna a avui</button></div>
+    <div class="cal-avui-fila"><button type="button" class="cal-avui amagat" id="calAvui">↺ <span class="avui-llarg">Torna a </span>avui</button></div>
     <div class="cal-location" id="calLocation">S/D</div>
   </div>
 </div>
